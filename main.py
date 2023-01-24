@@ -96,6 +96,8 @@ if load_type != "fresh":
 m.train()
 optimiser = torch.optim.AdamW(m.parameters(), lr=learning_rate)
 
+print(f"model parameter count: {sum(p.numel() for p in m.parameters() if p.requires_grad):,}")
+
 for step in range(load_step, max_iters):
     if step % eval_interval == 0:
         losses = estimate_loss()
