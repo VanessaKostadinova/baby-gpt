@@ -5,19 +5,38 @@ from torch.nn import functional as F
 # hyperparams
 #torch.manual_seed(12345)
 batch_size = 64  # number of parallel sequences
-block_size = 256  # context length for predictions
+block_size = 512  # context length for predictions
 dev = "cuda:0" if torch.cuda.is_available() else "cpu"
 device = torch.device(dev)
-n_embed = 384
-n_head = 6
-n_blocks = 6
+n_embed = 512
+n_head = 8
+n_blocks = 10
 head_size = 16
 dropout = 0.2
 # set based on tiny shakespeare dataset
-vocab_size = 65
+vocab_size = 331
 # --------------
 
-class Head(nn.Module):
+class UnmaskedHead(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.key = nn.Linear(n_embed, head_size, bias=False)
+        self.query = nn.Linear(n_embed, head_size, bias=False)
+        self.value = nn.Linear(n_embed, head_size, bias=False)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        B,T,C = x.shape
+        k = self.key(x)
+        q = self.query(x)
+        wgt = q @ k.transpose(-2, -1) * C ** -0.5
+        wgt = F.softmax(wgt, dim=-1)
+        wgt = self.dropout(wgt)
+        v = self.value(x)
+        out = wgt @ v
+        return out
+
+class MaskedHead(nn.Module):
     def __init__(self, head_size):
         super().__init__()
         self.key = nn.Linear(n_embed, head_size, bias=False)
@@ -43,7 +62,7 @@ class Head(nn.Module):
 class MultiHeadAttention(nn.Module):
     def __init__(self, num_heads, head_size):
         super().__init__()
-        self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
+        self.heads = nn.ModuleList([MaskedHead(head_size) for _ in range(num_heads)])
         self.proj = nn.Linear(n_embed, n_embed)
         self.dropout = nn.Dropout(dropout)
 
@@ -124,3 +143,6 @@ class GPTModel(nn.Module):
             idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
             idx = torch.cat((idx, idx_next), dim=1)  # (B, T+1)
         return idx
+
+'''class Encoder(nn.Module):
+    def __init__(self):'''
