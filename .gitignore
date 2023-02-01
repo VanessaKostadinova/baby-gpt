@@ -131,3 +131,6 @@ dmypy.json
 # Pycharm stuff
 ./idea/*
 ./idea
+
+# Exclude models
+./models/*

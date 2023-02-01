@@ -2,21 +2,19 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-# hyperparams
-#torch.manual_seed(12345)
-batch_size = 64  # number of parallel sequences
-block_size = 512  # context length for predictions
-dev = "cuda:0" if torch.cuda.is_available() else "cpu"
-device = torch.device(dev)
-n_embed = 512
-n_head = 8
-n_blocks = 10
-head_size = 16
-dropout = 0.2
-# set based on tiny shakespeare dataset
-vocab_size = 331
-# --------------
+import config
 
+def set_globals(dict):
+    for k in dict:
+        globals()[k] = dict[k]
+
+globals()["device"] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+set_globals(config.file)
+set_globals(config.hyperparams)
+set_globals(config.training)
+
+print(config.hyperparams)
 class UnmaskedHead(nn.Module):
     def __init__(self):
         super().__init__()
@@ -26,7 +24,7 @@ class UnmaskedHead(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        B,T,C = x.shape
+        B, T, C = x.shape
         k = self.key(x)
         q = self.query(x)
         wgt = q @ k.transpose(-2, -1) * C ** -0.5
@@ -35,6 +33,7 @@ class UnmaskedHead(nn.Module):
         v = self.value(x)
         out = wgt @ v
         return out
+
 
 class MaskedHead(nn.Module):
     def __init__(self, head_size):
@@ -102,8 +101,9 @@ class Block(nn.Module):
 
 
 class GPTModel(nn.Module):
-    def __init__(self):
+    def __init__(self, vocab_size):
         super().__init__()
+        globals()["vocab_size"] = vocab_size
         self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
         self.position_embedding_table = nn.Embedding(block_size, n_embed)
         self.blocks = nn.Sequential(*[Block(n_embed, n_head) for _ in range(n_blocks)])
@@ -143,6 +143,3 @@ class GPTModel(nn.Module):
             idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
             idx = torch.cat((idx, idx_next), dim=1)  # (B, T+1)
         return idx
-
-'''class Encoder(nn.Module):
-    def __init__(self):'''
