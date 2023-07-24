@@ -2,15 +2,11 @@ import torch
 import model
 import os
 import encoder
-import config
+from config import *
 
-def set_globals(dict):
-    for k in dict:
-        globals()[k] = dict[k]
+h = hyperparams
 
-globals()["device"] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-set_globals(config.file)
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # finding model we will train
 # get the latest model for specified file based on step
@@ -25,6 +21,7 @@ if load_type == "latest":
     print(f"training model {model_name}")
     load_data = torch.load(f"{path_to_models}{model_name}")
     hyperparams = load_data["hyperparams"]
+
 # if we don't want a fresh model we've probably specified a file
 elif load_type != "fresh":
     model_name = load_type
@@ -33,15 +30,13 @@ elif load_type != "fresh":
     print(f"training model {model_name}")
     load_data = torch.load(f"{path_to_models}{model_name}")
     hyperparams = load_data["hyperparams"]
+
 else:
     model_prefix = f"model_{model_identifier}_{model_version:02}_step_"
     latest_step = 0
-    hyperparams = config.hyperparams
+    hyperparams = hyperparams
     load_data = None
 # --------------
-
-set_globals(config.hyperparams)
-set_globals(config.training)
 
 # making encoder
 with open(path_to_dataset, mode="r", encoding="utf-8") as file:
@@ -62,11 +57,11 @@ val_data = enc_data[n:]
 def get_batch(split):
     data = train_data if split == "train" else val_data
     # generate batch size number of random offsets, our context begins there
-    ix = torch.randint((len(data) - block_size), (batch_size,))
+    ix = torch.randint((len(data) - h.block_size), (h.batch_size,))
     # x = context, a stack of block_size data inputs
-    x = torch.stack([data[i:i + block_size] for i in ix]).to(device)
+    x = torch.stack([data[i:i + h.block_size] for i in ix]).to(device)
     # y = target, x but shifted by 1
-    y = torch.stack([data[i + 1:i + block_size + 1] for i in ix]).to(device)
+    y = torch.stack([data[i + 1:i + h.block_size + 1] for i in ix]).to(device)
     return x, y
 # --------------
 
@@ -76,7 +71,7 @@ def save_model(model, step):
     torch.save(
         dict(
             model=model.state_dict(),
-            params=config.hyperparams
+            params=hyperparams
         ),
         f"{path_to_models}{model_prefix}{step}{model_extension}"
     )

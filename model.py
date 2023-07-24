@@ -2,26 +2,19 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-import config
+from config import *
 
-def set_globals(dict):
-    for k in dict:
-        globals()[k] = dict[k]
+h = hyperparams
 
-globals()["device"] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-set_globals(config.file)
-set_globals(config.hyperparams)
-set_globals(config.training)
-
-print(config.hyperparams)
 class UnmaskedHead(nn.Module):
     def __init__(self):
         super().__init__()
-        self.key = nn.Linear(n_embed, head_size, bias=False)
-        self.query = nn.Linear(n_embed, head_size, bias=False)
-        self.value = nn.Linear(n_embed, head_size, bias=False)
-        self.dropout = nn.Dropout(dropout)
+        self.key = nn.Linear(h.n_embed, h.head_size, bias=False)
+        self.query = nn.Linear(h.n_embed, h.head_size, bias=False)
+        self.value = nn.Linear(h.n_embed, h.head_size, bias=False)
+        self.dropout = nn.Dropout(h.dropout)
 
     def forward(self, x):
         B, T, C = x.shape
@@ -38,11 +31,11 @@ class UnmaskedHead(nn.Module):
 class MaskedHead(nn.Module):
     def __init__(self, head_size):
         super().__init__()
-        self.key = nn.Linear(n_embed, head_size, bias=False)
-        self.query = nn.Linear(n_embed, head_size, bias=False)
-        self.value = nn.Linear(n_embed, head_size, bias=False)
-        self.register_buffer("tril", torch.tril(torch.ones(block_size, block_size)))
-        self.dropout = nn.Dropout(dropout)
+        self.key = nn.Linear(h.n_embed, head_size, bias=False)
+        self.query = nn.Linear(h.n_embed, head_size, bias=False)
+        self.value = nn.Linear(h.n_embed, head_size, bias=False)
+        self.register_buffer("tril", torch.tril(torch.ones(h.block_size, h.block_size)))
+        self.dropout = nn.Dropout(h.dropout)
 
     def forward(self, x):
         B, T, C = x.shape
@@ -62,8 +55,8 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, num_heads, head_size):
         super().__init__()
         self.heads = nn.ModuleList([MaskedHead(head_size) for _ in range(num_heads)])
-        self.proj = nn.Linear(n_embed, n_embed)
-        self.dropout = nn.Dropout(dropout)
+        self.proj = nn.Linear(h.n_embed, h.n_embed)
+        self.dropout = nn.Dropout(h.dropout)
 
     def forward(self, x):
         out = torch.cat([h(x) for h in self.heads], dim=-1)
@@ -78,7 +71,7 @@ class FeedForward(nn.Module):
             nn.Linear(n_embed, 4 * n_embed),
             nn.ReLU(),
             nn.Linear(4 * n_embed, n_embed),
-            nn.Dropout(dropout)
+            nn.Dropout(h.dropout)
         )
 
     def forward(self, x):
@@ -104,11 +97,11 @@ class GPTModel(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
         globals()["vocab_size"] = vocab_size
-        self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
-        self.position_embedding_table = nn.Embedding(block_size, n_embed)
-        self.blocks = nn.Sequential(*[Block(n_embed, n_head) for _ in range(n_blocks)])
-        self.l_norm = nn.LayerNorm(n_embed)
-        self.lm_head = nn.Linear(n_embed, vocab_size)
+        self.token_embedding_table = nn.Embedding(vocab_size, h.n_embed)
+        self.position_embedding_table = nn.Embedding(h.block_size, h.n_embed)
+        self.blocks = nn.Sequential(*[Block(h.n_embed, h.n_head) for _ in range(h.n_blocks)])
+        self.l_norm = nn.LayerNorm(h.n_embed)
+        self.lm_head = nn.Linear(h.n_embed, vocab_size)
 
     def forward(self, idx, targets=None):
         B, T = idx.shape
@@ -133,7 +126,7 @@ class GPTModel(nn.Module):
 
     def generate(self, idx, max_new_tokens):
         for _ in range(max_new_tokens):
-            idx_ctx = idx[:, -block_size:]
+            idx_ctx = idx[:, -h.block_size:]
             # prediction
             logits, loss = self(idx_ctx)
             # get last timestep logits
